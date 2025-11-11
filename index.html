@@ -3,21 +3,63 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Teste Mapa — Base OSM</title>
+  <title>Mapa — Satélite + Área de Estudo</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <style>html,body,#map{height:100%;margin:0}</style>
+  <style>
+    html,body,#map{height:100%;margin:0}
+    .legend{position:absolute;bottom:12px;left:12px;background:#fff;border-radius:6px;padding:8px 10px;box-shadow:0 0 10px rgba(0,0,0,.15);font:12px Arial,sans-serif}
+    .sym{display:flex;align-items:center;gap:6px;margin:4px 0}
+  </style>
 </head>
 <body>
 <div id="map"></div>
+
+<div class="legend">
+  <div style="font-weight:700">Legenda</div>
+  <div class="sym">
+    <span style="width:14px;height:14px;border:2px solid #0066CC;background:#66B2FF55;display:inline-block"></span>
+    Área de Estudo
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const map = L.map('map').setView([-29.645642, -51.015153], 16);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 22, attribution: "© OpenStreetMap"
-  }).addTo(map);
+// ===== MAPA: satélite ESRI (com fallback OSM) =====
+const map = L.map('map', {minZoom:10, maxZoom:22}).setView([-29.645642, -51.015153], 17);
+
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution:"© OpenStreetMap", maxZoom:22
+});
+
+const esri = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { attribution:"Esri, Maxar, Earthstar Geographics", maxZoom:22 }
+).on('tileerror', () => { if (!map.hasLayer(osm)) osm.addTo(map); });
+
+esri.addTo(map);
+
+// Controle de camadas (para alternar se quiser)
+L.control.layers(
+  { "Satélite (Esri)": esri, "OSM (fallback)": osm },
+  {},
+  {collapsed:false}
+).addTo(map);
+
+// ===== Área de Estudo (fitBounds ao carregar) =====
+fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
+  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(gj => {
+    const area = L.geoJSON(gj, {
+      style:{ color:"#0066CC", weight:2, fillColor:"#66B2FF", fillOpacity:0.15 }
+    }).addTo(map);
+    map.fitBounds(area.getBounds());
+  })
+  .catch(() => console.warn('Area_Estudo_PLUMA.geojson não encontrado na raiz'));
 </script>
 </body>
 </html>
+
+
 
 
 
