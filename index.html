@@ -26,12 +26,21 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* ====== MAPA E BASE ====== */
-const map = L.map('map', { minZoom:10, maxZoom:22 });
+/* ====== MAPA (com fallback setView) ====== */
+/* Coordenadas do seu ponto (aprox.): -29.645642, -51.015153 */
+const map = L.map('map', { minZoom:10, maxZoom:22 }).setView([-29.645642, -51.015153], 17);
+
+/* Bases: ESRI (primária) + OSM (fallback automático se a ESRI falhar) */
+const osm = L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { attribution:"© OpenStreetMap", maxZoom:22 }
+);
 const esri = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { attribution:"Esri, Maxar, Earthstar Geographics" }
-).addTo(map);
+  { attribution:"Esri, Maxar, Earthstar Geographics", maxZoom:22 }
+).on('tileerror', () => { if (!map.hasLayer(osm)) osm.addTo(map); });
+
+esri.addTo(map);
 
 /* ====== RASTERS (PASTAS NA RAIZ DO REPO) ====== */
 const raster18 = L.tileLayer("18/{x}/{y}.png", {
@@ -46,8 +55,11 @@ const raster18_iii = L.tileLayer("18_III/18/{x}/{y}.png", {
   minNativeZoom:18, maxNativeZoom:18, tileSize:256, attribution:"3ª Campanha Pb"
 }).addTo(map);
 
-/* ====== CONTROLE DE CAMADAS (criado já) ====== */
-const baseMaps = { "Satélite (Esri)": esri };
+/* ====== CONTROLE DE CAMADAS ====== */
+const baseMaps = {
+  "Satélite (Esri)": esri,
+  "OSM (fallback)": osm
+};
 const overlaysInitial = {
   "1ª Campanha Pb": raster18,
   "2ª Campanha Pb": raster18_ii,
@@ -55,19 +67,25 @@ const overlaysInitial = {
 };
 const layerControl = L.control.layers(baseMaps, overlaysInitial, {collapsed:false}).addTo(map);
 
-/* ====== ÁREA DE ESTUDO (fitBounds) ====== */
+/* ====== ÁREA DE ESTUDO (fitBounds com tratamento de erro) ====== */
 fetch('Area_Estudo_PLUMA.geojson')
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error('Area_Estudo_PLUMA.geojson não encontrado');
+    return r.json();
+  })
   .then(gj => {
     const layer = L.geoJSON(gj, {
       style:{ color:"#0066CC", weight:2, fillColor:"#66B2FF", fillOpacity:0.15 }
     }).addTo(map);
     layerControl.addOverlay(layer, "Área de Estudo");
     map.fitBounds(layer.getBounds());
+  })
+  .catch(() => {
+    // Mantém o setView inicial se o arquivo não existir no repositório
+    console.warn('Usando view padrão por ausência de Area_Estudo_PLUMA.geojson');
   });
 
 /* ====== FLECHAS (Dir_Flux_Subt) ====== */
-/* Flecha sólida, base “aponta para cima” (0° = norte), TAMANHO 22x22 */
 function arrowIcon(angleDeg){
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
@@ -77,7 +95,6 @@ function arrowIcon(angleDeg){
   </svg>`;
   return L.divIcon({ html: svg, className:"", iconSize:[22,22], iconAnchor:[11,11] });
 }
-/* Ângulo: usa campo do .geojson, senão fallback por id */
 function resolveAngle(props){
   const fallback = { 1:230, 2:272, 4:170, 5:225, 6:215 };
   const angleFields = ['angulo','angle','rot','rotation','ROT','Ang','ANG','grau','graus','GRAUS'];
@@ -85,24 +102,25 @@ function resolveAngle(props){
     if (props && props[k] != null && !isNaN(Number(props[k]))) return Number(props[k]);
   }
   const id = Number(props?.id ?? props?.ID ?? props?.Id);
-  return fallback[id] ?? 0; // 0° = norte (aponta para cima)
+  return fallback[id] ?? 0;
 }
 fetch('Dir_Flux_Subt.geojson')
-  .then(r => r.json())
+  .then(r => r.ok ? r.json() : Promise.reject())
   .then(gj => {
     const layer = L.geoJSON(gj, {
-      pointToLayer:(f,latlng)=> L.marker(latlng, { icon: arrowIcon(resolveAngle(f.properties)) }),
-      onEachFeature:(f,layer)=>{
+      pointToLayer:(f,latlng)=> L.marker(latlng, { icon: arrowIcon(resolveAngle(f.properties)) } ),
+      onEachFeature:(f,lyr)=>{
         const ang = resolveAngle(f.properties || {});
-        layer.bindTooltip(`Direção: ${ang.toFixed(0)}°`, { direction:'top', offset:[0,-10], className:'label-min' });
+        lyr.bindTooltip(`Direção: ${ang.toFixed(0)}°`, { direction:'top', offset:[0,-10], className:'label-min' });
       }
     }).addTo(map);
     layerControl.addOverlay(layer, "Direcionamento do Fluxo Subterrâneo");
-  });
+  })
+  .catch(()=>{ console.warn('Dir_Flux_Subt.geojson ausente'); });
 
 /* ====== CONTORNOS (Isolinhas) ====== */
 fetch('Contornos.geojson')
-  .then(r => r.json())
+  .then(r => r.ok ? r.json() : Promise.reject())
   .then(gj => {
     const layer = L.geoJSON(gj, {
       style:{ color:"#000", weight:2, fillOpacity:0 },
@@ -117,7 +135,8 @@ fetch('Contornos.geojson')
       }
     }).addTo(map);
     layerControl.addOverlay(layer, "Linhas Equipotenciais (m)");
-  });
+  })
+  .catch(()=>{ console.warn('Contornos.geojson ausente'); });
 
 /* ====== PMS (Poços de Monitoramento) ====== */
 function pmIconDiv(){
@@ -130,25 +149,27 @@ function pmIconDiv(){
   return L.divIcon({ html: svg, className:"", iconSize:[18,18], iconAnchor:[9,9] });
 }
 fetch('PMs.geojson')
-  .then(r => r.json())
+  .then(r => r.ok ? r.json() : Promise.reject())
   .then(gj => {
     const layer = L.geoJSON(gj, {
-      pointToLayer:(f,latlng)=> L.marker(latlng, { icon: pmIconDiv() }),
+      pointToLayer:(f,latlng)=> L.marker(latlng, { icon: pmIconDiv() } ),
       onEachFeature:(f,lyr)=>{
         const props = f.properties || {};
         const nome = (props.Nome ?? props.nome ?? props.NOME ?? "").toString();
         if (nome) lyr.bindTooltip(nome, { permanent:true, direction:"top", offset:[0,-7], opacity:1, className:"label-halo" });
-        // popup com tabela de atributos
         const rows = Object.entries(props).map(([k,v]) =>
           `<tr><th style="text-align:left;padding-right:8px;">${k}</th><td>${v}</td></tr>`).join("");
         lyr.bindPopup(`<div style="font:12px Arial,sans-serif;"><b>Poços de Monitoramento (PM)</b><br/><table>${rows}</table></div>`);
       }
     }).addTo(map);
     layerControl.addOverlay(layer, "Poços de Monitoramento (PM)");
-  });
+  })
+  .catch(()=>{ console.warn('PMs.geojson ausente'); });
 </script>
 </body>
 </html>
+
+
 
 
 
