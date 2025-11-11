@@ -24,28 +24,30 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ===== MAPA: satélite ESRI (com fallback OSM) =====
+// ===== MAPA: Satélite (sem OSM)
 const map = L.map('map', {minZoom:10, maxZoom:22}).setView([-29.645642, -51.015153], 17);
 
-const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution:"© OpenStreetMap", maxZoom:22
-});
-
+// Base primária: EOX Sentinel-2 cloudless 2021 (XYZ, sem token)
+const s2cloudless = L.tileLayer(
+  "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg",
+  { maxZoom:19, tileSize:256, crossOrigin:true, attribution:"© EOX & Copernicus Sentinel-2 cloudless 2021" }
+);
+// Fallback satélite: ESRI World Imagery
 const esri = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { attribution:"Esri, Maxar, Earthstar Geographics", maxZoom:22 }
-).on('tileerror', () => { if (!map.hasLayer(osm)) osm.addTo(map); });
+  { maxZoom:22, tileSize:256, crossOrigin:true, attribution:"Esri, Maxar, Earthstar Geographics" }
+);
 
-esri.addTo(map);
+// se a EOX falhar, troca para ESRI automaticamente
+s2cloudless.on('tileerror', () => { if (!map.hasLayer(esri)) esri.addTo(map); });
 
-// Controle de camadas (para alternar se quiser)
-L.control.layers(
-  { "Satélite (Esri)": esri, "OSM (fallback)": osm },
-  {},
-  {collapsed:false}
-).addTo(map);
+// inicia com EOX
+s2cloudless.addTo(map);
 
-// ===== Área de Estudo (fitBounds ao carregar) =====
+// controle de bases (somente satélite)
+L.control.layers({ "Sentinel-2 (EOX)": s2cloudless, "Esri World Imagery": esri }, {}, {collapsed:false}).addTo(map);
+
+// ===== Área de Estudo (fitBounds ao carregar)
 fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(gj => {
@@ -58,8 +60,6 @@ fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
 </script>
 </body>
 </html>
-
-
 
 
 
