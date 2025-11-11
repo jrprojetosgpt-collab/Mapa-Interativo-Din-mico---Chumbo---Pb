@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mapa — Satélite + Área de Estudo</title>
+  <title>Mapa — Imagem de Satélite</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     html,body,#map{height:100%;margin:0}
-    .legend{position:absolute;bottom:12px;left:12px;background:#fff;border-radius:6px;padding:8px 10px;box-shadow:0 0 10px rgba(0,0,0,.15);font:12px Arial,sans-serif}
+    .legend{position:absolute;bottom:12px;left:12px;background:#fff;border-radius:6px;padding:8px 10px;
+            box-shadow:0 0 10px rgba(0,0,0,.15);font:12px Arial,sans-serif}
     .sym{display:flex;align-items:center;gap:6px;margin:4px 0}
   </style>
 </head>
@@ -24,30 +25,15 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// ===== MAPA: Satélite (sem OSM)
+/* ===== MAPA — Base Google Satellite ===== */
 const map = L.map('map', {minZoom:10, maxZoom:22}).setView([-29.645642, -51.015153], 17);
 
-// Base primária: EOX Sentinel-2 cloudless 2021 (XYZ, sem token)
-const s2cloudless = L.tileLayer(
-  "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg",
-  { maxZoom:19, tileSize:256, crossOrigin:true, attribution:"© EOX & Copernicus Sentinel-2 cloudless 2021" }
-);
-// Fallback satélite: ESRI World Imagery
-const esri = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom:22, tileSize:256, crossOrigin:true, attribution:"Esri, Maxar, Earthstar Geographics" }
-);
+const googleSat = L.tileLayer(
+  'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+  { maxZoom: 22, tileSize: 256, attribution: "© Google Satellite" }
+).addTo(map);
 
-// se a EOX falhar, troca para ESRI automaticamente
-s2cloudless.on('tileerror', () => { if (!map.hasLayer(esri)) esri.addTo(map); });
-
-// inicia com EOX
-s2cloudless.addTo(map);
-
-// controle de bases (somente satélite)
-L.control.layers({ "Sentinel-2 (EOX)": s2cloudless, "Esri World Imagery": esri }, {}, {collapsed:false}).addTo(map);
-
-// ===== Área de Estudo (fitBounds ao carregar)
+/* ===== ÁREA DE ESTUDO ===== */
 fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(gj => {
@@ -56,10 +42,12 @@ fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
     }).addTo(map);
     map.fitBounds(area.getBounds());
   })
-  .catch(() => console.warn('Area_Estudo_PLUMA.geojson não encontrado na raiz'));
+  .catch(() => console.warn('Area_Estudo_PLUMA.geojson não encontrado.'));
 </script>
 </body>
 </html>
+
+
 
 
 
