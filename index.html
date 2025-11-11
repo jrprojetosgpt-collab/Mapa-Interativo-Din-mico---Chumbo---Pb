@@ -3,12 +3,21 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mapa — Imagem de Satélite</title>
+  <title>Mapa — Imagem de Satélite (Ajustado)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     html,body,#map{height:100%;margin:0}
-    .legend{position:absolute;bottom:12px;left:12px;background:#fff;border-radius:6px;padding:8px 10px;
-            box-shadow:0 0 10px rgba(0,0,0,.15);font:12px Arial,sans-serif}
+    .legend{
+      position:absolute;
+      bottom:12px;
+      left:12px;
+      background:#fff;
+      border-radius:6px;
+      padding:8px 10px;
+      box-shadow:0 0 10px rgba(0,0,0,.25);
+      font:12px Arial,sans-serif;
+      z-index:1000; /* >>> garante legenda acima do mapa <<< */
+    }
     .sym{display:flex;align-items:center;gap:6px;margin:4px 0}
   </style>
 </head>
@@ -25,27 +34,40 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* ===== MAPA — Base Google Satellite ===== */
-const map = L.map('map', {minZoom:10, maxZoom:22}).setView([-29.645642, -51.015153], 17);
+// ===== MAPA — Base Google Satellite =====
+const map = L.map('map', {minZoom:10, maxZoom:22});
+
+// Posição de fallback (Novo Hamburgo / Três Coroas)
+const fallbackCenter = [-29.645642, -51.015153];
+map.setView(fallbackCenter, 17);
 
 const googleSat = L.tileLayer(
   'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
   { maxZoom: 22, tileSize: 256, attribution: "© Google Satellite" }
 ).addTo(map);
 
-/* ===== ÁREA DE ESTUDO ===== */
+// ===== ÁREA DE ESTUDO =====
 fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
-  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(r => {
+    if (!r.ok) throw new Error('GeoJSON não encontrado');
+    return r.json();
+  })
   .then(gj => {
     const area = L.geoJSON(gj, {
       style:{ color:"#0066CC", weight:2, fillColor:"#66B2FF", fillOpacity:0.15 }
     }).addTo(map);
-    map.fitBounds(area.getBounds());
+    const bounds = area.getBounds();
+    if (bounds.isValid()) map.fitBounds(bounds);
   })
-  .catch(() => console.warn('Area_Estudo_PLUMA.geojson não encontrado.'));
+  .catch(() => {
+    console.warn('⚠️ Área de Estudo não carregada — usando centro padrão.');
+    map.setView(fallbackCenter, 17);
+  });
 </script>
 </body>
 </html>
+
+
 
 
 
