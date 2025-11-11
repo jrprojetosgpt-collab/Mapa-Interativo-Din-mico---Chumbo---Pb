@@ -1,68 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mapa — Satélite (fixo) + Área</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <style>
-    html,body,#map{height:100%;margin:0}
-    .legend{
-      position:absolute;bottom:12px;left:12px;z-index:1000;
-      background:#fff;border-radius:6px;padding:8px 10px;
-      box-shadow:0 0 10px rgba(0,0,0,.25);font:12px Arial,sans-serif
-    }
-    .sym{display:flex;align-items:center;gap:6px;margin:4px 0}
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Satélite (mínimo)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>html,body,#map{height:100%;margin:0}</style>
 </head>
 <body>
 <div id="map"></div>
 
-<div class="legend">
-  <div style="font-weight:700">Legenda</div>
-  <div class="sym">
-    <span style="width:14px;height:14px;border:2px solid #0066CC;background:#66B2FF55;display:inline-block"></span>
-    Área de Estudo
-  </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* ===== BASE ÚNICA: Google Satellite ===== */
-/* Sem controles, sem fallback. */
-const map = L.map('map', {minZoom:10, maxZoom:22});
+  // Inicia o mapa (centro genérico no Brasil)
+  const map = L.map('map', { minZoom: 2, maxZoom: 22 }).setView([-15, -55], 5);
 
-/* Fallback de centro (garante que NÃO abre no oceano) */
-const CENTER_FALLBACK = [-29.645642, -51.015153]; // ajuste se quiser
-const ZOOM_FALLBACK = 17;
-map.setView(CENTER_FALLBACK, ZOOM_FALLBACK);
-
-L.tileLayer(
-  'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-  { maxZoom:22, tileSize:256, attribution:'© Google' }
-).addTo(map);
-
-/* ===== Área de Estudo: fitBounds quando carregar ===== */
-fetch('Area_Estudo_PLUMA.geojson', {cache:'no-store'})
-  .then(r => {
-    if (!r.ok) throw new Error('Area_Estudo_PLUMA.geojson não encontrado');
-    return r.json();
-  })
-  .then(gj => {
-    const area = L.geoJSON(gj, {
-      style:{ color:"#0066CC", weight:2, fillColor:"#66B2FF", fillOpacity:0.15 }
-    }).addTo(map);
-    const b = area.getBounds();
-    if (b && b.isValid && b.isValid()) map.fitBounds(b, {padding:[20,20]});
-  })
-  .catch(err => {
-    console.warn('⚠️', err.message, '— usando centro padrão.');
-    map.setView(CENTER_FALLBACK, ZOOM_FALLBACK);
-  });
+  // ÚNICA camada: imagem de satélite ESRI
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { attribution: "Esri, Maxar, Earthstar Geographics", maxZoom: 22 }
+  ).addTo(map);
 </script>
 </body>
 </html>
-
 
 
 
